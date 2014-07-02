@@ -3,6 +3,7 @@
 import argparse
 import logging
 import sys
+import suds
 
 import nogvmware.util as u
 
@@ -14,6 +15,7 @@ class StopVM(u.Client, u.Tasker):
 
     def __init__(self, args):
         self.vms = args.vm
+        self.force = args.force
         u.Client.__init__(self)
 
     def run(self):
@@ -22,16 +24,24 @@ class StopVM(u.Client, u.Tasker):
 
     def stop(self, vmname):
         vm = VirtualMachine.get(self.client, name=vmname)
-        print 'Attempting to shut down %s' % (vmname)
-        shutdown = vm.ShutdownGuest()
-        self.task(vm, shutdown)
-        print 'Attempting to power off %s' % (vmname)
+        print 'Attempting to shut down ' + vmname
+        try:
+            shutdown = vm.ShutdownGuest()
+            self.task(vm, shutdown)
+        except suds.WebFault as e:
+            if self.force:
+                print 'Attempting to forcefully power off ' + vmname
+                pass
+            else:
+                raise e
+        print 'Attempting to power off ' + vmname
         poweroff = vm.PowerOffVM_Task()
         self.task(vm, poweroff)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('vm', nargs='+', help='Names of virtual machines to shut down')
+    parser.add_argument('-f', dest='force', action='store_const', const=True, default=False, help='Forceful and sudden shutdown')
     args = parser.parse_args()
     stopvm = StopVM(args)
     return stopvm.run()
